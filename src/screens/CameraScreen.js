@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Text, Image, FlatList, TouchableOpacity, Dimensions, Platform, Linking } from 'react-native';
+import { View, StyleSheet, Alert, Text, Image, Dimensions, TouchableOpacity, Platform, Linking } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import Share from 'react-native-share';
 import RNFS from 'react-native-fs';
-import ImageEditor from '@react-native-community/image-editor';
+import FrameSelector from './FrameSelector';
 
 const frames = [
     { id: 1, name: 'Frame 1', uri: require('../assets/frames/frame1.png') },
@@ -16,43 +16,7 @@ const frames = [
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const FrameOverlay = ({ frame }) => {
-    return (
-        <View style={StyleSheet.absoluteFill}>
-            <Image source={frame.uri} style={styles.frameImage} />
-        </View>
-    );
-};
-
-const FrameSelector = ({ frames, selectedFrame, onSelectFrame, onCapture }) => {
-    const renderItem = ({ item }) => (
-        <TouchableOpacity
-            style={[
-                styles.frameButton,
-                selectedFrame.id === item.id && styles.frameButtonSelected,
-            ]}
-            onPress={() => {
-                onSelectFrame(item);
-                onCapture(item); // Capture image when selecting frame
-            }}
-        >
-            <Image source={item.uri} style={styles.frameButtonImage} />
-        </TouchableOpacity>
-    );
-
-    return (
-        <FlatList
-            data={frames}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.frameList}
-        />
-    );
-};
-
-export default function CameraScreen() {
+const CameraScreen = () => {
     const { hasPermission, requestPermission } = useCameraPermission();
     const device = useCameraDevice('back');
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
@@ -91,8 +55,9 @@ export default function CameraScreen() {
         requestPermissionAsync();
     }, [hasPermission, requestPermission]);
 
-    const handleSelectFrame = (frame) => {
+    const handleSelectFrame = async (frame) => {
         setSelectedFrame(frame);
+        await takePicture(); // Capture image automatically when a frame is selected
     };
 
     const takePicture = async () => {
@@ -102,13 +67,7 @@ export default function CameraScreen() {
                 const photoUri = photo.path;
                 setCapturedPhoto(photoUri);
                 console.log('Captured photo path:', photoUri);
-
-                // Convert frame URI to a file path
-                const frameUri = await getFrameUri(selectedFrame.uri);
-
-                const mergedPhotoUri = await mergeFrameWithPhoto(photoUri, frameUri);
-                setCapturedPhoto(mergedPhotoUri);
-                console.log('Captured photo with frame:', mergedPhotoUri);
+                await overlayFrameOnPhoto(photoUri, selectedFrame.uri);
             } catch (error) {
                 console.error('Error capturing photo:', error);
                 Alert.alert('Error', 'Failed to capture photo.');
@@ -116,55 +75,20 @@ export default function CameraScreen() {
         }
     };
 
-    const getFrameUri = async (frameUri) => {
+    const overlayFrameOnPhoto = async (photoUri, frameUri) => {
         try {
-            // Convert the frame asset to a path
-            const frameName = frameUri.split('/').pop();
-            const framePath = `${RNFS.CachesDirectoryPath}/${frameName}`;
-            await RNFS.copyFile(frameUri, framePath);
-            return framePath;
+            console.log('Photo URI:', photoUri);
+            console.log('Frame URI:', frameUri);
+
+            // Here you need to handle the logic to overlay the frame on the photo.
+            // For example, you might use a library like `react-native-canvas` or `react-native-image-editor`.
+
+            // Placeholder for actual image overlay logic
+            // Use the correct method to overlay frame on the photo and update the state with the final image URI.
         } catch (error) {
-            console.error('Error getting frame URI:', error);
-            Alert.alert('Error', 'Failed to get frame URI.');
-            return null;
+            console.error('Error overlaying frame on photo:', error);
+            Alert.alert('Error', 'Failed to overlay frame on photo.');
         }
-    };
-
-
-    const mergeFrameWithPhoto = async (photoUri, frameUri) => {
-        try {
-            if (!photoUri || !frameUri) {
-                throw new Error('Invalid URIs provided for merging.');
-            }
-
-            const photoExists = await RNFS.exists(photoUri);
-            const frameExists = await RNFS.exists(frameUri);
-
-            if (!photoExists || !frameExists) {
-                throw new Error('One or both of the files do not exist.');
-            }
-
-            // Read photo and frame data
-            const photoData = await RNFS.readFile(photoUri, 'base64');
-            const frameData = await RNFS.readFile(frameUri, 'base64');
-
-            // Use an external library to overlay the frame on the photo
-            // For example, using react-native-canvas
-            // You need to implement the actual image overlay logic here
-            const mergedImageUri = await overlayImages(photoData, frameData);
-
-            return mergedImageUri;
-        } catch (error) {
-            console.error('Error merging frame with photo:', error);
-            Alert.alert('Error', 'Failed to merge frame with photo.');
-            return null;
-        }
-    };
-    const overlayImages = async (photoData, frameData) => {
-        // This function needs to be implemented based on the library you choose
-        // You might use react-native-canvas or a similar library to handle the overlay
-        // Here's a placeholder implementation
-        return 'file://path-to-merged-image'; // Replace with actual merged image path
     };
 
     const savePhoto = async (path) => {
@@ -207,29 +131,35 @@ export default function CameraScreen() {
                 photo={true}
                 ref={cameraRef}
             />
-            <FrameOverlay frame={selectedFrame} />
+            {selectedFrame.uri && (
+                <View style={StyleSheet.absoluteFill}>
+                    <Image source={selectedFrame.uri} style={styles.frameImage} />
+                </View>
+            )}
             <View style={styles.frameSelectorContainer}>
                 <FrameSelector
                     frames={frames}
                     selectedFrame={selectedFrame}
                     onSelectFrame={handleSelectFrame}
-                    onCapture={takePicture}
                 />
             </View>
             {capturedPhoto && (
                 <View style={styles.previewContainer}>
                     <Image source={{ uri: `file://${capturedPhoto}` }} style={styles.previewImage} />
-                    <TouchableOpacity onPress={() => savePhoto(capturedPhoto)}>
-                        <Text style={styles.saveButton}>Save Photo</Text>
+                    <TouchableOpacity onPress={() => savePhoto(capturedPhoto)} style={styles.saveButton}>
+                        <Text style={styles.buttonText}>Save Photo</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => sharePhoto(capturedPhoto)}>
-                        <Text style={styles.shareButton}>Share Photo</Text>
+                    <TouchableOpacity onPress={() => sharePhoto(capturedPhoto)} style={styles.shareButton}>
+                        <Text style={styles.buttonText}>Share Photo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setCapturedPhoto(null)} style={styles.closeButton}>
+                        <Text style={styles.buttonText}>Close</Text>
                     </TouchableOpacity>
                 </View>
             )}
         </View>
     );
-}
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -239,36 +169,20 @@ const styles = StyleSheet.create({
     },
     frameSelectorContainer: {
         position: 'absolute',
-        bottom: 100,
+        bottom: 0,
         width: screenWidth,
         paddingHorizontal: 20,
-    },
-    frameList: {
-        flexGrow: 1,
-        justifyContent: 'center',
-    },
-    frameButton: {
-        margin: 5,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        overflow: 'hidden',
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    frameButtonImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    frameButtonSelected: {
-        borderColor: '#007BFF',
-        borderWidth: 4,
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderTopColor: '#ddd',
     },
     frameImage: {
         width: '100%',
         height: '100%',
         resizeMode: 'contain',
+        position: 'absolute',
+        top: 0,
+        left: 0,
     },
     previewContainer: {
         position: 'absolute',
@@ -286,15 +200,25 @@ const styles = StyleSheet.create({
     },
     saveButton: {
         backgroundColor: '#28a745',
-        color: 'white',
         padding: 10,
         borderRadius: 5,
         marginBottom: 10,
     },
     shareButton: {
         backgroundColor: '#007bff',
-        color: 'white',
+        padding: 10,
+        borderRadius: 5,
+        marginBottom: 10,
+    },
+    closeButton: {
+        backgroundColor: '#dc3545',
         padding: 10,
         borderRadius: 5,
     },
+    buttonText: {
+        color: 'white',
+        fontSize: 18,
+    },
 });
+
+export default CameraScreen;
