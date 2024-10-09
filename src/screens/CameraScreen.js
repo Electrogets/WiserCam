@@ -4,6 +4,9 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 import Share from 'react-native-share';
 import RNFS from 'react-native-fs';
 import FrameSelector from './FrameSelector';
+import ImageResizer from 'react-native-image-resizer';
+import { Canvas } from 'react-native-canvas'; // Import at the top
+
 
 const frames = [
     { id: 1, name: 'Frame 1', uri: require('../assets/frames/frame1.png') },
@@ -14,6 +17,7 @@ const frames = [
     { id: 6, name: 'Frame 6', uri: require('../assets/frames/frame6.png') },
 ];
 
+
 const { width: screenWidth } = Dimensions.get('window');
 
 const CameraScreen = () => {
@@ -21,6 +25,7 @@ const CameraScreen = () => {
     const device = useCameraDevice('back');
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
     const [capturedPhoto, setCapturedPhoto] = useState(null);
+    const [finalImage, setFinalImage] = useState(null);
     const cameraRef = useRef(null);
 
     useEffect(() => {
@@ -55,9 +60,14 @@ const CameraScreen = () => {
         requestPermissionAsync();
     }, [hasPermission, requestPermission]);
 
+
     const handleSelectFrame = async (frame) => {
         setSelectedFrame(frame);
-        await takePicture(); // Capture image automatically when a frame is selected
+        console.log('Selected Frame:', frame); // Check the whole frame object
+        console.log('Selected Frame ID:', frame.id); // Log the ID
+        console.log('Selected Frame URI:', frame.uri); // Log the URI
+        await takePicture(); // Capture image automatically
+
     };
 
     const takePicture = async () => {
@@ -67,7 +77,8 @@ const CameraScreen = () => {
                 const photoUri = photo.path;
                 setCapturedPhoto(photoUri);
                 console.log('Captured photo path:', photoUri);
-                await overlayFrameOnPhoto(photoUri, selectedFrame.uri);
+                const finalImageUri = await overlayFrameOnPhoto(photoUri, selectedFrame.uri); // Use selectedFrame.uri
+                setFinalImage(finalImageUri);
             } catch (error) {
                 console.error('Error capturing photo:', error);
                 Alert.alert('Error', 'Failed to capture photo.');
@@ -75,20 +86,71 @@ const CameraScreen = () => {
         }
     };
 
+
     const overlayFrameOnPhoto = async (photoUri, frameUri) => {
+        console.log('Photo URI:', photoUri);
+        console.log('Frame URI:', frameUri);
         try {
-            console.log('Photo URI:', photoUri);
-            console.log('Frame URI:', frameUri);
+            const photoSize = await ImageResizer.createResizedImage(photoUri, screenWidth, screenWidth, 'JPEG', 100);
+            if (!photoSize || !photoSize.uri) {
+                throw new Error('Photo size not valid');
+            }
 
-            // Here you need to handle the logic to overlay the frame on the photo.
-            // For example, you might use a library like `react-native-canvas` or `react-native-image-editor`.
+            const resizedFrame = await ImageResizer.createResizedImage(frameUri, photoSize.width, photoSize.height, 'PNG', 100);
+            if (!resizedFrame || !resizedFrame.uri) {
+                throw new Error('Resized frame not valid');
+            }
 
-            // Placeholder for actual image overlay logic
-            // Use the correct method to overlay frame on the photo and update the state with the final image URI.
+            const mergedImageUri = await mergeImages(photoSize.uri, resizedFrame.uri);
+            return mergedImageUri;
         } catch (error) {
             console.error('Error overlaying frame on photo:', error);
             Alert.alert('Error', 'Failed to overlay frame on photo.');
+            return null;
         }
+    };
+
+    const mergeImages = (photoUri, frameUri) => {
+        console.log('Merging Images - Photo URI:', photoUri);
+        console.log('Merging Images - Frame URI:', frameUri);
+
+        return new Promise((resolve, reject) => {
+            const canvas = new Canvas();
+            const context = canvas.getContext('2d');
+
+            const photo = new Canvas.Image();
+            photo.src = photoUri;
+
+            photo.onload = () => {
+                canvas.width = photo.width;
+                canvas.height = photo.height;
+                context.drawImage(photo, 0, 0);
+
+                const frame = new Canvas.Image();
+                frame.src = frameUri;
+
+                frame.onload = () => {
+                    context.drawImage(frame, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const base64Image = dataUrl.split(',')[1];
+                    const filePath = `${RNFS.CachesDirectoryPath}/final_image_${Date.now()}.png`;
+
+                    RNFS.writeFile(filePath, base64Image, 'base64')
+                        .then(() => resolve(filePath))
+                        .catch((error) => reject(error));
+                };
+
+                frame.onerror = (e) => {
+                    console.error('Frame load error:', e);
+                    reject(new Error('Failed to load frame image.'));
+                };
+            };
+
+            photo.onerror = (e) => {
+                console.error('Photo load error:', e);
+                reject(new Error('Failed to load photo image.'));
+            };
+        });
     };
 
     const savePhoto = async (path) => {
@@ -143,16 +205,16 @@ const CameraScreen = () => {
                     onSelectFrame={handleSelectFrame}
                 />
             </View>
-            {capturedPhoto && (
+            {finalImage && (
                 <View style={styles.previewContainer}>
-                    <Image source={{ uri: `file://${capturedPhoto}` }} style={styles.previewImage} />
-                    <TouchableOpacity onPress={() => savePhoto(capturedPhoto)} style={styles.saveButton}>
+                    <Image source={{ uri: `file://${finalImage}` }} style={styles.previewImage} />
+                    <TouchableOpacity onPress={() => savePhoto(finalImage)} style={styles.saveButton}>
                         <Text style={styles.buttonText}>Save Photo</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => sharePhoto(capturedPhoto)} style={styles.shareButton}>
+                    <TouchableOpacity onPress={() => sharePhoto(finalImage)} style={styles.shareButton}>
                         <Text style={styles.buttonText}>Share Photo</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setCapturedPhoto(null)} style={styles.closeButton}>
+                    <TouchableOpacity onPress={() => setFinalImage(null)} style={styles.closeButton}>
                         <Text style={styles.buttonText}>Close</Text>
                     </TouchableOpacity>
                 </View>
@@ -217,7 +279,7 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         color: 'white',
-        fontSize: 18,
+        textAlign: 'center',
     },
 });
 
