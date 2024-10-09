@@ -9,3 +9,21 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 const config = {};
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+
+
+// module.exports = {
+//     resolver: {
+//         extraNodeModules: {
+//           'react-native-worklets-core': __dirname + '/node_modules/react-native-worklets-core',
+//         },
+//       },
+//     transformer: {
+//       getTransformOptions: async () => ({
+//         transform: {
+//           experimentalImportSupport: false,
+//           inlineRequires: true,
+//         },
+//       }),
+//     },
+//   };
+  

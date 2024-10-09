@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Text, Image, Dimensions, TouchableOpacity, Platform, Linking } from 'react-native';
+import { View, StyleSheet, Alert, Text, Image, Dimensions, TouchableOpacity, Platform, Linking, PermissionsAndroid,ImageBackground } from 'react-native'; // Added PermissionsAndroid
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import Share from 'react-native-share';
 import RNFS from 'react-native-fs';
 import FrameSelector from './FrameSelector';
-import ImageResizer from 'react-native-image-resizer';
-import { Canvas } from 'react-native-canvas'; // Import at the top
+import ViewShot from "react-native-view-shot";
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const frames = [
     { id: 1, name: 'Frame 1', uri: require('../assets/frames/frame1.png') },
@@ -17,16 +17,13 @@ const frames = [
     { id: 6, name: 'Frame 6', uri: require('../assets/frames/frame6.png') },
 ];
 
-
-const { width: screenWidth } = Dimensions.get('window');
-
 const CameraScreen = () => {
     const { hasPermission, requestPermission } = useCameraPermission();
     const device = useCameraDevice('back');
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
-    const [capturedPhoto, setCapturedPhoto] = useState(null);
     const [finalImage, setFinalImage] = useState(null);
     const cameraRef = useRef(null);
+    const viewShotRef = useRef(null);
 
     useEffect(() => {
         const requestPermissionAsync = async () => {
@@ -39,7 +36,7 @@ const CameraScreen = () => {
                             text: 'Open Settings',
                             onPress: () => {
                                 if (Platform.OS === 'android') {
-                                    IntentAndroid.openSettings();
+                                    Linking.openSettings();
                                 } else {
                                     Linking.openURL('app-settings:');
                                 }
@@ -57,110 +54,96 @@ const CameraScreen = () => {
                 await requestPermission();
             }
         };
+
         requestPermissionAsync();
     }, [hasPermission, requestPermission]);
 
 
-    const handleSelectFrame = async (frame) => {
-        setSelectedFrame(frame);
-        console.log('Selected Frame:', frame); // Check the whole frame object
-        console.log('Selected Frame ID:', frame.id); // Log the ID
-        console.log('Selected Frame URI:', frame.uri); // Log the URI
-        await takePicture(); // Capture image automatically
+    // Function to request storage permission
+    const requestStoragePermission = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+                    {
+                        title: 'Storage Permission',
+                        message: 'This app needs access to your storage to save photos.',
+                        buttonNeutral: 'Ask Me Later',
+                        buttonNegative: 'Cancel',
+                        buttonPositive: 'OK',
+                    }
+                );
 
+                if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                    console.log('Storage permission granted');
+                } else {
+                    Alert.alert('Permission Denied', 'Storage permission is required to save photos.');
+                }
+            } catch (err) {
+                console.warn(err);
+            }
+        }
+    };
+
+    // Call this function in your main component or useEffect
+    useEffect(() => {
+        requestStoragePermission();
+    }, []);
+
+
+
+    const handleSelectFrame = (frame) => {
+        setSelectedFrame(frame);  // Set the selected frame when user selects a frame
+        console.log('Selected Frame:', frame);
     };
 
     const takePicture = async () => {
-        if (cameraRef.current !== null) {
-            try {
-                const photo = await cameraRef.current.takePhoto({});
-                const photoUri = photo.path;
-                setCapturedPhoto(photoUri);
-                console.log('Captured photo path:', photoUri);
-                const finalImageUri = await overlayFrameOnPhoto(photoUri, selectedFrame.uri); // Use selectedFrame.uri
-                setFinalImage(finalImageUri);
-            } catch (error) {
-                console.error('Error capturing photo:', error);
-                Alert.alert('Error', 'Failed to capture photo.');
-            }
-        }
-    };
-
-
-    const overlayFrameOnPhoto = async (photoUri, frameUri) => {
-        console.log('Photo URI:', photoUri);
-        console.log('Frame URI:', frameUri);
         try {
-            const photoSize = await ImageResizer.createResizedImage(photoUri, screenWidth, screenWidth, 'JPEG', 100);
-            if (!photoSize || !photoSize.uri) {
-                throw new Error('Photo size not valid');
+            if (!cameraRef.current) {
+                console.log('Camera reference not set');
+                return;
             }
 
-            const resizedFrame = await ImageResizer.createResizedImage(frameUri, photoSize.width, photoSize.height, 'PNG', 100);
-            if (!resizedFrame || !resizedFrame.uri) {
-                throw new Error('Resized frame not valid');
-            }
+            // Capture the camera image
+            const photo = await cameraRef.current.takePhoto({
+                qualityPrioritization: 'balanced',
+                flash: 'off',
+            });
 
-            const mergedImageUri = await mergeImages(photoSize.uri, resizedFrame.uri);
-            return mergedImageUri;
+            console.log('Camera image captured:', photo.path);
+
+            // Set the captured camera image as the background
+            setFinalImage(photo.path); // Save the image path for display
+
+            Alert.alert('Success', 'Photo captured with frame!', [{ text: 'OK' }]);
         } catch (error) {
-            console.error('Error overlaying frame on photo:', error);
-            Alert.alert('Error', 'Failed to overlay frame on photo.');
-            return null;
+            console.error('Error capturing image with frame:', error);
+            Alert.alert('Error', 'Failed to capture image with frame.');
         }
     };
 
-    const mergeImages = (photoUri, frameUri) => {
-        console.log('Merging Images - Photo URI:', photoUri);
-        console.log('Merging Images - Frame URI:', frameUri);
-
-        return new Promise((resolve, reject) => {
-            const canvas = new Canvas();
-            const context = canvas.getContext('2d');
-
-            const photo = new Canvas.Image();
-            photo.src = photoUri;
-
-            photo.onload = () => {
-                canvas.width = photo.width;
-                canvas.height = photo.height;
-                context.drawImage(photo, 0, 0);
-
-                const frame = new Canvas.Image();
-                frame.src = frameUri;
-
-                frame.onload = () => {
-                    context.drawImage(frame, 0, 0, canvas.width, canvas.height);
-                    const dataUrl = canvas.toDataURL('image/png');
-                    const base64Image = dataUrl.split(',')[1];
-                    const filePath = `${RNFS.CachesDirectoryPath}/final_image_${Date.now()}.png`;
-
-                    RNFS.writeFile(filePath, base64Image, 'base64')
-                        .then(() => resolve(filePath))
-                        .catch((error) => reject(error));
-                };
-
-                frame.onerror = (e) => {
-                    console.error('Frame load error:', e);
-                    reject(new Error('Failed to load frame image.'));
-                };
-            };
-
-            photo.onerror = (e) => {
-                console.error('Photo load error:', e);
-                reject(new Error('Failed to load photo image.'));
-            };
-        });
-    };
 
     const savePhoto = async (path) => {
+        // Request storage permission before saving
+        const hasPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
+
+        if (!hasPermission) {
+            Alert.alert('Permission Required', 'Storage permission is required to save photos.');
+            return;
+        }
+
         try {
-            const newPath = `${RNFS.PicturesDirectoryPath}/${new Date().toISOString()}.jpg`;
+            // Generate a new filename
+            const filename = `photo_${new Date().toISOString()}.jpg`;
+            const newPath = `${RNFS.PicturesDirectoryPath}/${filename}`;
+
+            // Move the captured image to the Pictures directory
             await RNFS.moveFile(path, newPath);
-            Alert.alert('Success', 'Photo saved successfully.');
+
+            Alert.alert('Success', 'Photo saved successfully to Pictures directory.');
         } catch (error) {
             console.error('Error saving photo:', error);
-            Alert.alert('Error', 'Failed to save photo.');
+            Alert.alert('Error', 'Failed to save photo. Please check permissions.');
         }
     };
 
@@ -176,6 +159,10 @@ const CameraScreen = () => {
         }
     };
 
+    const closePreview = () => {
+        setFinalImage(null); // Hide the preview and go back to the camera
+    };
+
     if (hasPermission === 'denied') {
         return <View style={styles.container}><Text>Camera permission is required.</Text></View>;
     }
@@ -186,18 +173,29 @@ const CameraScreen = () => {
 
     return (
         <View style={styles.container}>
-            <Camera
-                style={StyleSheet.absoluteFill}
-                device={device}
-                isActive={true}
-                photo={true}
-                ref={cameraRef}
-            />
-            {selectedFrame.uri && (
-                <View style={StyleSheet.absoluteFill}>
+            {/* Ensure camera and frames are captured */}
+            <ViewShot ref={viewShotRef} style={styles.cameraContainer} options={{ format: 'png', quality: 1 }}>
+                <Camera
+                    style={StyleSheet.absoluteFill}
+                    device={device}
+                    isActive={true}
+                    photo={true}
+                    ref={cameraRef}
+                />
+                {/* Render the selected frame over the camera */}
+                {selectedFrame?.uri && (
                     <Image source={selectedFrame.uri} style={styles.frameImage} />
-                </View>
-            )}
+                )}
+            </ViewShot>
+
+            {/* Controls for capturing the image */}
+            <View style={styles.controlsContainer}>
+                <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
+                    <Text style={styles.buttonText}>Capture</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Frame selector at the bottom */}
             <View style={styles.frameSelectorContainer}>
                 <FrameSelector
                     frames={frames}
@@ -205,16 +203,23 @@ const CameraScreen = () => {
                     onSelectFrame={handleSelectFrame}
                 />
             </View>
+
+            {/* Image preview section */}
             {finalImage && (
                 <View style={styles.previewContainer}>
-                    <Image source={{ uri: `file://${finalImage}` }} style={styles.previewImage} />
+                    <ImageBackground source={{ uri: `file://${finalImage}` }} style={styles.capturedImage}>
+                        {/* Overlay the selected frame */}
+                        {selectedFrame?.uri && (
+                            <Image source={selectedFrame.uri} style={styles.frameImage} />
+                        )}
+                    </ImageBackground>
                     <TouchableOpacity onPress={() => savePhoto(finalImage)} style={styles.saveButton}>
                         <Text style={styles.buttonText}>Save Photo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => sharePhoto(finalImage)} style={styles.shareButton}>
                         <Text style={styles.buttonText}>Share Photo</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setFinalImage(null)} style={styles.closeButton}>
+                    <TouchableOpacity onPress={closePreview} style={styles.closeButton}>
                         <Text style={styles.buttonText}>Close</Text>
                     </TouchableOpacity>
                 </View>
@@ -226,8 +231,24 @@ const CameraScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'flex-end',
-        alignItems: 'center',
+    },
+    cameraContainer: {
+        flex: 1,
+    },
+    controlsContainer: {
+        position: 'absolute',
+        bottom: 100,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
+    captureButton: {
+        backgroundColor: 'white',
+        padding: 15,
+        borderRadius: 50,
+        borderWidth: 2,
+        borderColor: 'black',
     },
     frameSelectorContainer: {
         position: 'absolute',
@@ -241,46 +262,182 @@ const styles = StyleSheet.create({
     frameImage: {
         width: '100%',
         height: '100%',
-        resizeMode: 'contain',
+        resizeMode: 'cover',
         position: 'absolute',
         top: 0,
         left: 0,
     },
     previewContainer: {
-        position: 'absolute',
-        bottom: 100,
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'white',
-        padding: 10,
-        borderRadius: 10,
+        backgroundColor: 'rgba(0,0,0,0.8)',
     },
-    previewImage: {
-        width: 200,
-        height: 200,
-        resizeMode: 'cover',
-        marginBottom: 10,
+    capturedImage: {
+        width: screenWidth * 0.8,
+        height: screenWidth * 0.8,
+        resizeMode: 'contain',
+        marginBottom: 20,
     },
     saveButton: {
-        backgroundColor: '#28a745',
+        backgroundColor: 'green',
         padding: 10,
         borderRadius: 5,
         marginBottom: 10,
     },
     shareButton: {
-        backgroundColor: '#007bff',
+        backgroundColor: 'blue',
         padding: 10,
         borderRadius: 5,
         marginBottom: 10,
     },
     closeButton: {
-        backgroundColor: '#dc3545',
+        backgroundColor: 'red',
         padding: 10,
         borderRadius: 5,
     },
     buttonText: {
-        color: 'white',
-        textAlign: 'center',
+        color: 'black',
+        fontWeight: 'bold',
     },
 });
 
 export default CameraScreen;
+
+
+
+
+
+
+// import React, { useState, useRef, useEffect } from 'react';
+// import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+// import { Camera, useCameraDevices } from 'react-native-vision-camera';
+// import { useSharedValue, useAnimatedProps } from 'react-native-reanimated';
+// import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+// import CameraRoll from '@react-native-camera-roll/camera-roll';
+
+// const filters = {
+//   none: { saturation: 1, brightness: 1, contrast: 1 },
+//   sepia: { saturation: 0.5, brightness: 1.1, contrast: 1.2 },
+//   grayscale: { saturation: 0, brightness: 1, contrast: 1.2 },
+//   inverted: { saturation: 1, brightness: 1, contrast: 1, isInverted: true },
+// };
+
+// const CameraScreen = () => {
+//   const [currentFilter, setCurrentFilter] = useState('none');
+//   const camera = useRef(null);
+//   const devices = useCameraDevices();
+//   const device = devices.front;
+
+//   const [hasPermission, setHasPermission] = useState(false);
+
+//   useEffect(() => {
+//     (async () => {
+//       const status = await Camera.requestCameraPermission();
+//       setHasPermission(status === 'authorized');
+//     })();
+//   }, []);
+
+//   const captureImage = async () => {
+//     if (camera.current) {
+//       const photo = await camera.current.takePhoto({
+//         qualityPrioritization: 'quality',
+//         flash: 'off',
+//         enableAutoRedEyeReduction: true,
+//       });
+//       console.log('Picture taken:', photo.path);
+//       await CameraRoll.save(`file://${photo.path}`, { type: 'photo' });
+//     }
+//   };
+
+//   const saturation = useSharedValue(1);
+//   const brightness = useSharedValue(1);
+//   const contrast = useSharedValue(1);
+//   const isInverted = useSharedValue(0);
+
+//   const animatedProps = useAnimatedProps(() => ({
+//     saturation: saturation.value,
+//     brightness: brightness.value,
+//     contrast: contrast.value,
+//     isInverted: isInverted.value,
+//   }));
+
+//   const applyFilter = (filterName) => {
+//     const filter = filters[filterName];
+//     saturation.value = filter.saturation;
+//     brightness.value = filter.brightness;
+//     contrast.value = filter.contrast;
+//     isInverted.value = filter.isInverted ? 1 : 0;
+//     setCurrentFilter(filterName);
+//   };
+
+//   if (!hasPermission || !device) {
+//     return <View style={styles.container}><Text>No access to camera</Text></View>;
+//   }
+
+//   return (
+//     <View style={styles.container}>
+//       <Camera
+//         ref={camera}
+//         style={StyleSheet.absoluteFill}
+//         device={device}
+//         isActive={true}
+//         photo={true}
+//         animatedProps={animatedProps}
+//       />
+//       <View style={styles.filterContainer}>
+//         {Object.keys(filters).map((filter) => (
+//           <TouchableOpacity
+//             key={filter}
+//             style={[styles.filterButton, currentFilter === filter && styles.activeFilter]}
+//             onPress={() => applyFilter(filter)}
+//           >
+//             <Text style={styles.filterText}>{filter}</Text>
+//           </TouchableOpacity>
+//         ))}
+//       </View>
+//       <TouchableOpacity style={styles.captureButton} onPress={captureImage}>
+//         <Text style={styles.captureText}>Capture</Text>
+//       </TouchableOpacity>
+//     </View>
+//   );
+// };
+
+// const styles = StyleSheet.create({
+//   container: {
+//     flex: 1,
+//     backgroundColor: 'black',
+//   },
+//   filterContainer: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-around',
+//     position: 'absolute',
+//     bottom: 100,
+//     left: 0,
+//     right: 0,
+//   },
+//   filterButton: {
+//     padding: 10,
+//     borderRadius: 20,
+//     backgroundColor: 'rgba(255, 255, 255, 0.5)',
+//   },
+//   activeFilter: {
+//     backgroundColor: 'rgba(255, 255, 255, 0.8)',
+//   },
+//   filterText: {
+//     color: 'black',
+//   },
+//   captureButton: {
+//     position: 'absolute',
+//     bottom: 30,
+//     alignSelf: 'center',
+//     backgroundColor: 'white',
+//     padding: 15,
+//     borderRadius: 30,
+//   },
+//   captureText: {
+//     color: 'black',
+//   },
+// });
+
+// export default CameraScreen;
