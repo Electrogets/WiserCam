@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, Image, TouchableOpacity, StyleSheet, Text, View } from 'react-native';
 
 const frames = [
   { id: 1, uri: require('../assets/frames/frame1.png') },
   { id: 2, uri: require('../assets/frames/frame2.png') },
   { id: 3, uri: require('../assets/frames/frame3.png') },
+  { id: 4, uri: require('../assets/frames/frame4.jpg') },
+  { id: 5, uri: require('../assets/frames/frame5.png') },
+  { id: 6, uri: require('../assets/frames/frame6.png') },
 ];
 
 const FrameSelector = ({ onSelectFrame }) => {
+  const [selectedFrameId, setSelectedFrameId] = useState(null); // State to track selected frame
+
+  const handleFrameSelect = (frame) => {
+    setSelectedFrameId(frame.id); // Update selected frame
+    onSelectFrame(frame); // Trigger the onSelectFrame callback
+  };
+
   if (!frames || frames.length === 0) {
     return (
       <View style={styles.errorContainer}>
@@ -20,8 +30,13 @@ const FrameSelector = ({ onSelectFrame }) => {
     <View style={styles.backgroundContainer}>
       <ScrollView horizontal contentContainerStyle={styles.scrollContainer}>
         {frames.map((frame) => (
-          <TouchableOpacity key={frame.id} onPress={() => onSelectFrame(frame)}>
-            <View style={styles.frameWrapper}>
+          <TouchableOpacity key={frame.id} onPress={() => handleFrameSelect(frame)}>
+            <View
+              style={[
+                styles.frameWrapper,
+                selectedFrameId === frame.id ? styles.selectedFrame : null, // Conditional styling for selected frame
+              ]}
+            >
               <Image source={frame.uri} style={styles.frame} />
             </View>
           </TouchableOpacity>
@@ -33,10 +48,8 @@ const FrameSelector = ({ onSelectFrame }) => {
 
 const styles = StyleSheet.create({
   backgroundContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)', // Light background for better visibility
-    // padding: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)', 
     borderRadius: 10,
-    // marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -50,20 +63,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   frameWrapper: {
-    width: 60, // Smaller size for the circular frame
-    height: 60,
-    borderRadius: 30, // Circular shape
+    width: 80, // Smaller size for the circular frame
+    height: 80,
+    borderRadius: 40, // Circular shape
     borderWidth: 2, // Border width for visibility
-    borderColor: '#fff', // White border color
+    borderColor: '#fff', // Default white border
     margin: 5,
     overflow: 'hidden', // Ensures the image stays within the circular border
     alignItems: 'center', // Centering the image
     justifyContent: 'center', // Centering the image
   },
   frame: {
-    width: 60, // Match the wrapper size
-    height: 60,
-    resizeMode: 'cover', // Ensures the image covers the entire area
+    width: 100,
+    height: 70,
+    resizeMode: 'contain', // Ensures the image covers the entire area
+  },
+  selectedFrame: {
+    borderColor: '#FFD700', // Gold border for the selected frame
+    borderWidth: 4, // Thicker border for selected frame
   },
   errorContainer: {
     justifyContent: 'center',

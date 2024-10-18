@@ -16,8 +16,8 @@ export default function AppNavigator() {
                 <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Select Option' }} />
-                <Stack.Screen name="Camera" component={CameraScreen} />
-                <Stack.Screen name="Gallery" component={GalleryScreen} />
+                <Stack.Screen name="Camera" component={CameraScreen} options={{ headerShown: false }}  />
+                <Stack.Screen name="Gallery" component={GalleryScreen} options={{ headerShown: false }}  />
             </Stack.Navigator>
         </NavigationContainer>
     );

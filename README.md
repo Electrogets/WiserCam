@@ -77,3 +77,54 @@ To learn more about React Native, take a look at the following resources:
 - [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+
+# file structure
+- [android] -> src -> Assets -> frames (frames png files)
+
+- [android] -> src -> components -> CameraPreview.js()
+
+- [android] -> src -> components -> FrameSelector.js(frame selection logic here)
+
+- [android] -> src -> navigation -> AppNavigation.js(All components navigation define here)
+
+- [android] -> src -> screens -> CameraScreen.js(camera permisssion, take picture ,save image, shareimage, overlay image all components defien here)
+
+-   src -> screens -> FrameSelector.js(frame selection logic here)
+
+-   src -> screens -> GalleryScreen.js(pic media from gallery, overlay frame on selected image components here)
+
+-   src -> screens -> HomeScreen.js(selected camera and gallery option with the icon)
+
+-   src -> screens -> LoginScreen.js(login component here)
+
+-  src -> screens -> SpalshScreen.js(splashscreen with their icon or animation)
+
+
+
+
+
+# Cli Commands 
+```bash
+# clean cache
+npx react-native clean || npm start --reset-cache
+# start project for Android
+npm start || npx react-native run-android 
+# start project for ios
+npm start || npx react-native run-ios
+# install Packages
+npm install [Package-Name] || npm i [Package-Name] 
+# uninstall Packages
+npm uninstall [Package-Name] -> To uninstall package from the project
+# to install npm packages or node module
+npm i || npm install 
+# To prepare for a fresh build
+cd android && ./gradlew clean 
+# to back to the main folder
+cd ..
+```
+# generate the publish ABB file of the app
+
+- [clickhere](https://reactnative.dev/docs/signed-apk-android)
+# To change the version name and code version
+- current  -> versionCode = 1 && versionName = 1.0
+- To update follow the path(D:\WiserCamera\android\app\build.gradle) in defaultconfig{} function
