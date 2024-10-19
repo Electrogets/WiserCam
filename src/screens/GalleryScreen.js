@@ -8,9 +8,10 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import ViewShot from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import SendIntent from 'react-native-send-intent';
-import moment from 'moment'; // For date formatting
+import moment from 'moment';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const dirPictures = `${RNFS.ExternalStorageDirectoryPath}/MyAppImages`;
 
 const frames = [
     { id: 1, name: 'Frame 1', uri: require('../assets/frames/frame1.png') },
@@ -23,7 +24,7 @@ const frames = [
 export default function GalleryScreen() {
     const [image, setImage] = useState(null);
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
-    const viewShotRef = createRef(); // Create the reference
+    const viewShotRef = createRef(); // Create the reference 
 
 
     const selectImage = () => {
@@ -38,48 +39,54 @@ export default function GalleryScreen() {
 
     const requestStoragePermission = async () => {
         try {
-            const granted = await PermissionsAndroid.request(
-                PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-                {
-                    title: "Storage Permission",
-                    message: "This app needs access to your storage to save photos.",
-                    buttonNeutral: "Ask Me Later",
-                    buttonNegative: "Cancel",
-                    buttonPositive: "OK"
+            if (Platform.OS === 'android') {
+                const writeGranted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+                    {
+                        title: 'Storage Permission',
+                        message: 'App needs access to your storage to save photos.',
+                        buttonNeutral: 'Ask Me Later',
+                        buttonNegative: 'Cancel',
+                        buttonPositive: 'OK',
+                    }
+                );
+    
+                if (writeGranted === PermissionsAndroid.RESULTS.GRANTED) {
+                    // Check Android version and ask for MANAGE_EXTERNAL_STORAGE for Android 11+
+                    if (Platform.Version >= 29) { // Android 11 or higher
+                        const manageGranted = await PermissionsAndroid.request(
+                            PermissionsAndroid.PERMISSIONS.MANAGE_EXTERNAL_STORAGE,
+                            {
+                                title: 'Manage External Storage',
+                                message: 'App needs access to manage files in storage.',
+                                buttonNeutral: 'Ask Me Later',
+                                buttonNegative: 'Cancel',
+                                buttonPositive: 'OK',
+                            }
+                        );
+    
+                        if (manageGranted === PermissionsAndroid.RESULTS.GRANTED) {
+                            console.log('Manage External Storage permission granted.');
+                            return true;
+                        } else {
+                            Alert.alert('Permission Denied', 'Manage External Storage permission is required.');
+                            return false;
+                        }
+                    }
+                    console.log('Write External Storage permission granted.');
+                    return true;
+                } else {
+                    Alert.alert('Permission Denied', 'Write External Storage permission is required.');
+                    return false;
                 }
-            );
-            return granted === PermissionsAndroid.RESULTS.GRANTED;
+            }
+            return true; // iOS does not need this permission
         } catch (err) {
-            console.warn(err);
+            console.warn('Error requesting permissions:', err);
             return false;
         }
     };
 
-    // const captureAndSavePhoto = async () => {
-    //     if (!viewShotRef.current) {
-    //         Alert.alert("Error", "ViewShot reference is not available.");
-    //         return;
-    //     }
-    
-    //     try {
-    //         const uri = await viewShotRef.current.capture(); // Capture the shot
-    //         console.log("Image URI:", uri);
-    
-    //         // Request storage permission before saving
-    //         const permissionGranted = await requestStoragePermission();
-    //         if (!permissionGranted) return;
-    
-    //         // Save the captured image to the camera roll
-    //         await CameraRoll.save(uri, { type: 'photo' });
-    //         Alert.alert("Success", "Photo saved successfully!");
-    
-    //     } catch (error) {
-    //         console.error("Error saving photo:", error);
-    //         Alert.alert("Error", "Failed to save photo. Please try again.");
-    //     }
-    // };
-    
-   
     const captureAndSavePhoto = async () => {
         if (!viewShotRef.current) {
             Alert.alert("Error", "ViewShot reference is not available.");
@@ -87,68 +94,44 @@ export default function GalleryScreen() {
         }
     
         try {
-            // Step 1: Capture the image
-            const uri = await viewShotRef.current.capture();
+            const uri = await viewShotRef.current.capture(); // Capture the image
             console.log("Captured Image URI:", uri);
     
             // Request storage permission
             const permissionGranted = await requestStoragePermission();
             if (!permissionGranted) {
-                console.log("Permission not granted!");
+                Alert.alert("Permission Required", "Please grant storage permission to save photos.");
                 return;
             }
     
-            // Step 2: Ensure the captured URI is usable by removing 'file://'
-            const filePath = uri.replace('file://', ''); // Remove 'file://' prefix for RNFS
-            console.log("File path without 'file://':", filePath);
+            // Save the captured image to external storage
+            await saveImage(uri);
+        } catch (error) {
+            console.error("Error capturing and saving photo:", error);
+            Alert.alert("Error", "Failed to capture and save photo.");
+        }
+    };
+
+    const saveImage = async (uri) => {
+        try {
+            const fileName = `image_${Date.now()}.png`;
+            const destPath = `${RNFS.PicturesDirectoryPath}/${fileName}`;
     
-            // Define the directory and file name for saving the image
-            const dirPictures = `${RNFS.ExternalStorageDirectoryPath}/Pictures/MyAppImages`; // Create a custom folder in Pictures
-            const newImageName = `${moment().format('DDMMYY_HHmmSSS')}.jpg`;
-            const newFilepath = `${dirPictures}/${newImageName}`;
-            console.log("Saving image to:", newFilepath);
+            // Copy the image from cache to the Pictures directory
+            await RNFS.copyFile(uri, destPath);
+            console.log("Image saved to:", destPath);
     
-            // Step 3: Create the directory if it doesn't exist
-            const dirExists = await RNFS.exists(dirPictures);
-            if (!dirExists) {
-                await RNFS.mkdir(dirPictures);
-                console.log("Created directory:", dirPictures);
-            }
-    
-            // Step 4: Move the captured image to external storage using your custom logic
-            await saveImage(filePath, newFilepath);
-    
-            // Step 5: Save to CameraRoll
-            await CameraRoll.save(newFilepath, { type: 'photo' });
+            // Save to CameraRoll
+            await CameraRoll.save(destPath, { type: 'photo' });
             console.log("Image saved to CameraRoll");
     
-            // Step 6: Trigger media scan for updating the gallery
-            await SendIntent.send('android.intent.action.MEDIA_SCANNER_SCAN_FILE', {
-                uri: 'file://' + newFilepath, // Add 'file://' back for media scanning
-            });
-            console.log("Media scan triggered for:", newFilepath);
-    
-            Alert.alert("Success", "Photo saved successfully with frame overlay!");
+            Alert.alert("Success", "Image saved to external storage!");
         } catch (error) {
-            console.error("Error saving photo:", error);
-            Alert.alert("Error", `Failed to save photo. Error: ${error.message}`);
+            console.error("Error saving image:", error);
+            Alert.alert("Error", "Failed to save image.");
         }
     };
-    
-    // Save Image Function Using the Logic You Provided
-    const saveImage = async (filePath, newFilepath) => {
-        try {
-            console.log(`Moving image from ${filePath} to ${newFilepath}`);
-            // Move and save image to new file path
-            await RNFS.moveFile(filePath, newFilepath);
-            console.log('Image moved to:', newFilepath);
-            return true; // Return true if successful
-        } catch (error) {
-            console.error("Error moving file:", error);
-            throw error; // Rethrow the error to be handled in the calling function
-        }
-    };
-    
+
 
     const sharePhoto = async () => {
         try {
