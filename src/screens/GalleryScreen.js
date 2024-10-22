@@ -37,56 +37,6 @@ export default function GalleryScreen() {
         });
     };
 
-    // const requestStoragePermission = async () => {
-    //     try {
-    //         if (Platform.OS === 'android') {
-    //             const writeGranted = await PermissionsAndroid.request(
-    //                 PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-    //                 {
-    //                     title: 'Storage Permission',
-    //                     message: 'App needs access to your storage to save photos.',
-    //                     buttonNeutral: 'Ask Me Later',
-    //                     buttonNegative: 'Cancel',
-    //                     buttonPositive: 'OK',
-    //                 }
-    //             );
-    
-    //             if (writeGranted === PermissionsAndroid.RESULTS.GRANTED) {
-    //                 // Check Android version and ask for MANAGE_EXTERNAL_STORAGE for Android 11+
-    //                 if (Platform.Version >= 29) { // Android 11 or higher
-    //                     const manageGranted = await PermissionsAndroid.request(
-    //                         PermissionsAndroid.PERMISSIONS.MANAGE_EXTERNAL_STORAGE,
-    //                         {
-    //                             title: 'Manage External Storage',
-    //                             message: 'App needs access to manage files in storage.',
-    //                             buttonNeutral: 'Ask Me Later',
-    //                             buttonNegative: 'Cancel',
-    //                             buttonPositive: 'OK',
-    //                         }
-    //                     );
-    
-    //                     if (manageGranted === PermissionsAndroid.RESULTS.GRANTED) {
-    //                         console.log('Manage External Storage permission granted.');
-    //                         return true;
-    //                     } else {
-    //                         Alert.alert('Permission Denied', 'Manage External Storage permission is required.');
-    //                         return false;
-    //                     }
-    //                 }
-    //                 console.log('Write External Storage permission granted.');
-    //                 return true;
-    //             } else {
-    //                 Alert.alert('Permission Denied', 'Write External Storage permission is required.');
-    //                 return false;
-    //             }
-    //         }
-    //         return true; // iOS does not need this permission
-    //     } catch (err) {
-    //         console.warn('Error requesting permissions:', err);
-    //         return false;
-    //     }
-    // };
-
     const checkPermissions = async () => {
         try {
             if (Platform.OS !== 'android') return true;
@@ -275,26 +225,37 @@ export default function GalleryScreen() {
 
     return (
         <View style={styles.container}>
-            {!image ? (
-                <Button title="Select Image" onPress={selectImage} />
-            ) : (
-                <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }} style={styles.imageContainer}>
-                    <ImageBackground source={{ uri: image }} style={styles.fullImage}>
+        {!image ? (
+            <Button title="Select Image" onPress={selectImage} />
+        ) : (
+            <View style={styles.mainContainer}>
+                {/* Separate ViewShot container for just the image and frame */}
+                <ViewShot 
+                    ref={viewShotRef} 
+                    options={{ 
+                        format: 'png', 
+                        quality: 0.9,
+                        result: 'tmpfile'
+                    }}
+                    style={styles.imageContainer}
+                >
+                    <ImageBackground 
+                        source={{ uri: image }} 
+                        style={styles.fullImage}
+                       
+                    >
                         {selectedFrame?.uri && (
-                            <Image source={selectedFrame.uri} style={styles.frameImage} />
+                            <Image 
+                                source={selectedFrame.uri} 
+                                style={styles.frameImage}
+                               
+                            />
                         )}
                     </ImageBackground>
-    
-                    {/* Frame selector at the bottom */}
-                    <View style={styles.frameSelectorContainer}>
-                        <FrameSelector
-                            frames={frames}
-                            selectedFrame={selectedFrame}
-                            onSelectFrame={setSelectedFrame}
-                        />
-                    </View>
-    
-                    {/* Options to save, share, or reset */}
+                </ViewShot>
+
+                {/* Controls Container - Outside of ViewShot */}
+                <View style={styles.controlsContainer}>
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity onPress={sharePhoto} style={styles.iconButton}>
                             <Icon name="share" size={35} color="white" />
@@ -306,11 +267,20 @@ export default function GalleryScreen() {
                             <Icon name="close" size={35} color="white" />
                         </TouchableOpacity>
                     </View>
-                </ViewShot>
-            )}
-        </View>
-    );
-}    
+
+                    <View style={styles.frameSelectorContainer}>
+                        <FrameSelector
+                            frames={frames}
+                            selectedFrame={selectedFrame}
+                            onSelectFrame={setSelectedFrame}
+                        />
+                    </View>
+                </View>
+            </View>
+        )}
+    </View>
+);
+} 
 
 
 const styles = StyleSheet.create({
@@ -352,6 +322,7 @@ const styles = StyleSheet.create({
         width: screenWidth,
     },
     iconButton: {
+        bottom:30,
         marginHorizontal: 15,
         backgroundColor: 'rgba(0,0,0,0.7)',
         padding: 10,

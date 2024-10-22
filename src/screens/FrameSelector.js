@@ -48,8 +48,9 @@ const FrameSelector = ({ onSelectFrame }) => {
 
 const styles = StyleSheet.create({
   backgroundContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+    // backgroundColor: 'rgba(0, 0, 0, 0.8)', 
     borderRadius: 10,
+    width:'100%',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
