@@ -2,56 +2,76 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, Alert, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import axios from 'axios';
 
-export default function LoginScreen({ navigation }) {
+export default function SignupScreen({ navigation }) {
     const colorScheme = useColorScheme();
-    const [username, setUsername] = useState('');
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
 
-    const handleLogin = async () => {
+    const handleSignup = async () => {
         try {
-            const response = await axios.post('http://your-django-api-url.com/api/login/', {
-                username,
+            const response = await axios.post('http://your-django-api-url.com/api/signup/', {
+                name,
+                email,
+                phone,
                 password,
             });
             if (response.data.success) {
-                // Navigate to Home screen on successful login
-                navigation.replace('Home');
+                Alert.alert('Success', 'Account created successfully!', [
+                    { text: 'OK', onPress: () => navigation.navigate('Login') },
+                ]);
             } else {
-                Alert.alert('Error', response.data.message || 'Invalid credentials');
+                Alert.alert('Error', response.data.message || 'Unable to create account');
             }
         } catch (error) {
             Alert.alert('Error', 'Something went wrong');
         }
     };
 
-    const handleRedirectToSignup = () => {
-        navigation.navigate('Signup');
+    const handleRedirectToLogin = () => {
+        navigation.navigate('Login');
     };
 
     return (
         <View style={[styles.container, colorScheme === 'dark' ? styles.containerDark : styles.containerLight]}>
-            <Text style={[styles.title, colorScheme === 'dark' ? styles.titleDark : styles.titleLight]}>Login</Text>
+            <Text style={[styles.title, colorScheme === 'dark' ? styles.titleDark : styles.titleLight]}>Sign Up</Text>
             <TextInput
                 style={[styles.input, colorScheme === 'dark' ? styles.inputDark : styles.inputLight]}
-                placeholder="Username"
+                placeholder="Name"
                 placeholderTextColor={colorScheme === 'dark' ? '#aaa' : '#555'}
-                value={username}
-                onChangeText={setUsername}
+                value={name}
+                onChangeText={setName}
             />
             <TextInput
                 style={[styles.input, colorScheme === 'dark' ? styles.inputDark : styles.inputLight]}
-                placeholder="Password"
+                placeholder="Email"
+                placeholderTextColor={colorScheme === 'dark' ? '#aaa' : '#555'}
+                value={email}
+                onChangeText={setEmail}
+            />
+            <TextInput
+                style={[styles.input, colorScheme === 'dark' ? styles.inputDark : styles.inputLight]}
+                placeholder="Phone Number"
+                placeholderTextColor={colorScheme === 'dark' ? '#aaa' : '#555'}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+            />
+            <TextInput
+                style={[styles.input, colorScheme === 'dark' ? styles.inputDark : styles.inputLight]}
+                placeholder="Create Password"
                 placeholderTextColor={colorScheme === 'dark' ? '#aaa' : '#555'}
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
             />
-            <Button title="Login" onPress={handleLogin} color={colorScheme === 'dark' ? '#888' : '#000'} />
+            <Button title="Sign Up" onPress={handleSignup} color={colorScheme === 'dark' ? '#888' : '#000'} />
 
-            {/* Signup Link */}
-            <Text style={styles.signupText1}>Don't have an account?</Text>
-            <TouchableOpacity onPress={handleRedirectToSignup}>
-                <Text style={styles.signupText}>Sign up</Text>
+            {/* Login Link */}
+            <Text style={styles.loginText1}>Already have an account?</Text>
+            <TouchableOpacity onPress={handleRedirectToLogin}>
+                <Text style={styles.loginText}>Log in</Text>
             </TouchableOpacity>
         </View>
     );
@@ -98,15 +118,15 @@ const styles = StyleSheet.create({
         backgroundColor: '#222',
         color: '#fff',
     },
-    signupText: {
+    loginText: {
+       
         marginTop: 0,
         color: '#00f',
         textDecorationLine: 'underline',
         fontWeight:"700",
     },
-    signupText1: {
+    loginText1: {
         marginTop: 20,
-        // color: '#00f',
         fontWeight:"700",
-    }
+    },
 });

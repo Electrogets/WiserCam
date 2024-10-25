@@ -1,38 +1,91 @@
-import React, { useState, createRef } from 'react';
+import React, { useState, createRef,useEffect,useRef } from 'react';
 import { View, Button, Image, StyleSheet, TouchableOpacity, Alert, ImageBackground, Dimensions, Platform, PermissionsAndroid,Linking } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import FrameSelector from './FrameSelector';
 import Share from 'react-native-share';
-import CameraRoll from '@react-native-camera-roll/camera-roll';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ViewShot from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
-import SendIntent from 'react-native-send-intent';
-import moment from 'moment';
+
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const dirPictures = `${RNFS.ExternalStorageDirectoryPath}/MyAppImages`;
 
 const frames = [
     { id: 1, name: 'Frame 1', uri: require('../assets/frames/frame1.png') },
+    { id: 1, name: 'Frame 2', uri: require('../assets/frames/frame2.png') },
     { id: 3, name: 'Frame 3', uri: require('../assets/frames/frame3.png') },
-    { id: 4, name: 'Frame 4', uri: require('../assets/frames/frame4.jpg') },
+    { id: 4, name: 'Frame 4', uri: require('../assets/frames/frame4.png') },
     { id: 5, name: 'Frame 5', uri: require('../assets/frames/frame5.png') },
-    { id: 6, name: 'Frame 6', uri: require('../assets/frames/frame6.png') }
+
 ];
 
-export default function GalleryScreen() {
+export default function GalleryScreen({ navigation }) {
     const [image, setImage] = useState(null);
+    const [alertVisible, setAlertVisible] = useState(false);
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
     const viewShotRef = createRef(); // Create the reference 
+    const alertTimeoutRef = useRef(null);
+    // const [selectImage, setselectImage]= useState(null);
 
+
+
+
+    useEffect(() => {
+        return () => {
+            if (alertTimeoutRef.current) {
+                clearTimeout(alertTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const showTimedAlert = (message) => {
+        setAlertVisible(true);
+        Alert.alert(
+            'Success',
+            message,
+            [{ text: 'OK', onPress: () => setAlertVisible(false) }],
+            { cancelable: false }
+        );
+
+        // Set timeout to automatically close alert and return to camera after 2 seconds
+        alertTimeoutRef.current = setTimeout(() => {
+            setAlertVisible(false);
+            selectImage();
+        }, 2000);
+    };
+
+
+    useEffect(() => {
+        // Launch image picker when component mounts
+        selectImage();
+    }, []);
+
+    const handleNavigateBack = () => {
+        // Check if navigation exists before using it
+        if (navigation) {
+            navigation.goBack();
+        }
+    };
 
     const selectImage = () => {
-        launchImageLibrary({}, response => {
-            if (response.assets) {
+        const options = {
+            mediaType: 'photo',
+            quality: 1,
+            selectionLimit: 1,
+        };
+
+        launchImageLibrary(options, response => {
+            if (response.didCancel) {
+                // If user cancels, go back to previous screen
+                if (response.didCancel) {
+                    handleNavigateBack();
+                }
+            } else if (response.assets && response.assets.length > 0) {
                 setImage(response.assets[0].uri);
             } else if (response.errorCode) {
                 Alert.alert('Error', 'Failed to select image from gallery.');
+                handleNavigateBack();
             }
         });
     };
@@ -124,16 +177,8 @@ export default function GalleryScreen() {
                     // Continue even if scanning fails
                 }
 
-                Alert.alert(
-                    'Success',
-                    'Image saved successfully to Pictures/MyApp folder!',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => console.log('Image saved alert closed')
-                        }
-                    ]
-                );
+                // Show timed alert and auto-return to camera
+                showTimedAlert('Image saved successfully!');
             } else {
                 // For iOS, implement alternative saving method if needed
                 Alert.alert('Error', 'Image saving not implemented for iOS');
@@ -219,68 +264,78 @@ export default function GalleryScreen() {
             });
         } catch (error) {
             console.error('Error sharing photo:', error);
-            Alert.alert('Error', 'Failed to share photo.');
+            // Alert.alert('Error', 'Failed to share photo.');
         }
     };
+    const closePreview = () => {
+        // Clear any existing timeout
+        if (alertTimeoutRef.current) {
+            clearTimeout(alertTimeoutRef.current);
+        }
+        setselectImage();
+        // setCompositeImage(null);
+
+        setAlertVisible(false);
+    };
+
 
     return (
         <View style={styles.container}>
-        {!image ? (
-            <Button title="Select Image" onPress={selectImage} />
-        ) : (
-            <View style={styles.mainContainer}>
-                {/* Separate ViewShot container for just the image and frame */}
-                <ViewShot 
-                    ref={viewShotRef} 
-                    options={{ 
-                        format: 'png', 
-                        quality: 0.9,
-                        result: 'tmpfile'
-                    }}
-                    style={styles.imageContainer}
-                >
-                    <ImageBackground 
-                        source={{ uri: image }} 
-                        style={styles.fullImage}
-                       
+            {image ? (
+                <View style={styles.mainContainer}>
+                    <ViewShot 
+                        ref={viewShotRef} 
+                        options={{ 
+                            format: 'png', 
+                            quality: 0.9,
+                            result: 'tmpfile'
+                        }}
+                        style={styles.imageContainer}
                     >
-                        {selectedFrame?.uri && (
-                            <Image 
-                                source={selectedFrame.uri} 
-                                style={styles.frameImage}
-                               
+                        <ImageBackground 
+                            source={{ uri: image }} 
+                            style={styles.fullImage}
+                        >
+                            {selectedFrame?.uri && (
+                                <Image 
+                                    source={selectedFrame.uri} 
+                                    style={styles.frameImage}
+                                />
+                            )}
+                        </ImageBackground>
+                    </ViewShot>
+
+                    <View style={styles.controlsContainer}>
+                        <View style={styles.buttonContainer}>
+                            <TouchableOpacity onPress={sharePhoto} style={styles.iconButton}>
+                                <Icon name="share" size={35} color="white" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={captureAndSavePhoto} style={styles.iconButton}>
+                                <Icon name="download" size={50} color="white" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={selectImage} style={styles.iconButton}>
+                                <Icon name="close" size={35} color="white" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.frameSelectorContainer}>
+                            <FrameSelector
+                                frames={frames}
+                                selectedFrame={selectedFrame}
+                                onSelectFrame={setSelectedFrame}
                             />
-                        )}
-                    </ImageBackground>
-                </ViewShot>
-
-                {/* Controls Container - Outside of ViewShot */}
-                <View style={styles.controlsContainer}>
-                    <View style={styles.buttonContainer}>
-                        <TouchableOpacity onPress={sharePhoto} style={styles.iconButton}>
-                            <Icon name="share" size={35} color="white" />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={captureAndSavePhoto} style={styles.iconButton}>
-                            <Icon name="download" size={50} color="white" />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setImage(null)} style={styles.iconButton}>
-                            <Icon name="close" size={35} color="white" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.frameSelectorContainer}>
-                        <FrameSelector
-                            frames={frames}
-                            selectedFrame={selectedFrame}
-                            onSelectFrame={setSelectedFrame}
-                        />
+                        </View>
                     </View>
                 </View>
-            </View>
-        )}
-    </View>
-);
-} 
+            ) : (
+                // Show loading or empty state while image picker is launching
+                <View style={styles.loadingContainer}>
+                    {/* You can add a loading indicator here if desired */}
+                </View>
+            )}
+        </View>
+    );
+}
 
 
 const styles = StyleSheet.create({
@@ -309,9 +364,9 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         width: screenWidth,
-        borderTopWidth: 1,
-        borderTopColor: '#ddd',
-        backgroundColor: '#000',
+        // borderTopWidth: 1,
+        // borderTopColor: '#ddd',
+        // backgroundColor: '#000',
     },
     buttonContainer: {
         position: 'absolute',

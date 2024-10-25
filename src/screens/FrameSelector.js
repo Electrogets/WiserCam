@@ -5,9 +5,9 @@ const frames = [
   { id: 1, uri: require('../assets/frames/frame1.png') },
   { id: 2, uri: require('../assets/frames/frame2.png') },
   { id: 3, uri: require('../assets/frames/frame3.png') },
-  { id: 4, uri: require('../assets/frames/frame4.jpg') },
+  { id: 4, uri: require('../assets/frames/frame4.png') },
   { id: 5, uri: require('../assets/frames/frame5.png') },
-  { id: 6, uri: require('../assets/frames/frame6.png') },
+
 ];
 
 const FrameSelector = ({ onSelectFrame }) => {
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   frameWrapper: {
-    width: 80, // Smaller size for the circular frame
+    width:80, // Smaller size for the circular frame
     height: 80,
     borderRadius: 40, // Circular shape
     borderWidth: 2, // Border width for visibility
@@ -73,10 +73,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden', // Ensures the image stays within the circular border
     alignItems: 'center', // Centering the image
     justifyContent: 'center', // Centering the image
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   frame: {
-    width: 100,
-    height: 70,
+    // width: 50,
+    height: 60,
     resizeMode: 'contain', // Ensures the image covers the entire area
   },
   selectedFrame: {

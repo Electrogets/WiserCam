@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Image, Dimensions, TouchableOpacity, Platform, Linking, PermissionsAndroid, ImageBackground ,Text} from 'react-native';
+import { 
+    View, 
+    StyleSheet, 
+    Alert, 
+    Image, 
+    Dimensions, 
+    TouchableOpacity, 
+    Platform, 
+    Linking, 
+    PermissionsAndroid, 
+    ImageBackground, 
+    Text 
+} from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import Share from 'react-native-share';
 import RNFS from 'react-native-fs';
@@ -13,9 +25,9 @@ const frames = [
     { id: 1, name: 'Frame 1', uri: require('../assets/frames/frame1.png') },
     { id: 2, name: 'Frame 2', uri: require('../assets/frames/frame2.png') },
     { id: 3, name: 'Frame 3', uri: require('../assets/frames/frame3.png') },
-    { id: 4, name: 'Frame 4', uri: require('../assets/frames/frame4.jpg') },
+    { id: 4, name: 'Frame 4', uri: require('../assets/frames/frame4.png') },
     { id: 5, name: 'Frame 5', uri: require('../assets/frames/frame5.png') },
-    { id: 6, name: 'Frame 6', uri: require('../assets/frames/frame6.png') },
+
 ];
 
 const CameraScreen = () => {
@@ -23,51 +35,96 @@ const CameraScreen = () => {
     const device = useCameraDevice('back');
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
     const [finalImage, setFinalImage] = useState(null);
+    const [compositeImage, setCompositeImage] = useState(null);
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [isCameraReady, setIsCameraReady] = useState(false);
     const cameraRef = useRef(null);
     const viewShotRef = useRef(null);
+    const previewViewShotRef = useRef(null);
+    const alertTimeoutRef = useRef(null);
 
-    const checkPermissions = async () => {
-        try {
-            if (Platform.OS !== 'android') return true;
+    useEffect(() => {
+        const initializeCamera = async () => {
+            try {
+                if (!hasPermission) {
+                    const permission = await requestPermission();
+                    if (permission === 'authorized') {
+                        setIsCameraReady(true);
+                    } else {
+                        Alert.alert(
+                            'Camera Permission Required',
+                            'Please grant camera permission to use this feature.',
+                            [
+                                {
+                                    text: 'Open Settings',
+                                    onPress: () => Linking.openSettings()
+                                },
+                                { text: 'Cancel', style: 'cancel' }
+                            ]
+                        );
+                    }
+                } else {
+                    setIsCameraReady(true);
+                }
 
-            if (Platform.Version >= 33) {
-                const readImagesPermission = await PermissionsAndroid.check(
-                    PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-                );
-                console.log('READ_MEDIA_IMAGES permission:', readImagesPermission);
-                return readImagesPermission;
-            } else {
-                const writePermission = await PermissionsAndroid.check(
-                    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE
-                );
-                console.log('WRITE_EXTERNAL_STORAGE permission:', writePermission);
-                return writePermission;
+                if (Platform.OS === 'android') {
+                    const storagePermission = await PermissionsAndroid.request(
+                        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+                        {
+                            title: 'Storage Permission Required',
+                            message: 'This app needs access to your storage to save photos',
+                            buttonNeutral: 'Ask Me Later',
+                            buttonNegative: 'Cancel',
+                            buttonPositive: 'OK',
+                        }
+                    );
+                    
+                    if (storagePermission !== PermissionsAndroid.RESULTS.GRANTED) {
+                        // Alert.alert('Storage permission is required to save images.');
+                    }
+                }
+            } catch (err) {
+                console.error('Error initializing camera:', err);
+                Alert.alert('Error', 'Failed to initialize camera.');
             }
-        } catch (error) {
-            console.error('Error checking permissions:', error);
-            return false;
-        }
-    };
+        };
 
-    const requestPermissions = async () => {
-        try {
-            if (Platform.OS !== 'android') return true;
+        initializeCamera();
 
-            if (Platform.Version >= 33) {
-                const result = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-                );
-                return result === PermissionsAndroid.RESULTS.GRANTED;
-            } else {
-                const result = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE
-                );
-                return result === PermissionsAndroid.RESULTS.GRANTED;
+        const unsubscribe = Linking.addEventListener('url', async () => {
+            const cameraPermission = await requestPermission();
+            if (cameraPermission === 'authorized') {
+                setIsCameraReady(true);
             }
-        } catch (error) {
-            console.error('Error requesting permissions:', error);
-            return false;
+        });
+
+        return () => {
+            unsubscribe.remove();
+            if (alertTimeoutRef.current) {
+                clearTimeout(alertTimeoutRef.current);
+            }
+        };  
+    }, [hasPermission, requestPermission]);
+
+    useEffect(() => {
+        if (hasPermission) {
+            setIsCameraReady(true);
         }
+    }, [hasPermission]);
+
+    const showTimedAlert = (message) => {
+        setAlertVisible(true);
+        Alert.alert(
+            'Success',
+            message,
+            [{ text: 'OK', onPress: () => setAlertVisible(false) }],
+            { cancelable: false }
+        );
+
+        alertTimeoutRef.current = setTimeout(() => {
+            setAlertVisible(false);
+            closePreview();
+        }, 2000);
     };
 
     const ensureDirectoryExists = async () => {
@@ -77,7 +134,6 @@ const CameraScreen = () => {
             
             if (!exists) {
                 await RNFS.mkdir(directoryPath);
-                console.log('Directory created successfully');
             }
             
             return directoryPath;
@@ -87,70 +143,67 @@ const CameraScreen = () => {
         }
     };
 
-    const savePhoto = async (uri) => {
+    const savePhoto = async () => {
         try {
+            if (!previewViewShotRef.current) {
+                console.log('Preview ViewShot reference not set');
+                return;
+            }
+
+            const uri = await previewViewShotRef.current.capture();
+            console.log('Captured composite image URI:', uri);
+
             if (Platform.OS === 'android') {
-                // Ensure the directory exists
                 const directoryPath = await ensureDirectoryExists();
-                
-                // Generate unique filename
                 const timestamp = new Date().getTime();
                 const fileName = `MyApp_${timestamp}.png`;
                 const destinationPath = `${directoryPath}/${fileName}`;
 
-                console.log('Saving image to:', destinationPath);
-
-                // Copy the file
                 await RNFS.copyFile(uri, destinationPath);
-                console.log('File copied successfully');
 
-                // Make the image visible in the gallery
                 try {
                     await RNFS.scanFile(destinationPath);
                     console.log('File scanned successfully');
+                    showTimedAlert('Image saved successfully!');
                 } catch (scanError) {
                     console.warn('Error scanning file:', scanError);
-                    // Continue even if scanning fails
+                    Alert.alert('Error', 'Failed to save image to gallery.');
                 }
-
-                Alert.alert(
-                    'Success',
-                    'Image saved successfully to Pictures/MyApp folder!',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => console.log('Image saved alert closed')
-                        }
-                    ]
-                );
             } else {
-                // For iOS, implement alternative saving method if needed
+                // For iOS implementation
                 Alert.alert('Error', 'Image saving not implemented for iOS');
             }
         } catch (error) {
-            console.error('Error in saveImage:', error);
+            console.error('Error in savePhoto:', error);
             Alert.alert(
                 'Error',
-                'Failed to save image. Please make sure storage permissions are granted.',
+                'Failed to save image. Please check permissions.',
                 [
                     {
                         text: 'Open Settings',
                         onPress: () => Linking.openSettings()
                     },
-                    {
-                        text: 'Cancel',
-                        style: 'cancel'
-                    }
+                    { text: 'Cancel', style: 'cancel' }
                 ]
             );
         }
     };
 
- 
+    const sharePhoto = async () => {
+        try {
+            if (!previewViewShotRef.current) return;
 
-    const handleSelectFrame = (frame) => {
-        setSelectedFrame(frame);  
-        console.log('Selected Frame:', frame);
+            const uri = await previewViewShotRef.current.capture();
+            await Share.open({
+                url: `file://${uri}`,
+                title: 'Share Photo',
+            });
+        } catch (error) {
+            if (error.message !== 'User did not share') {
+                console.error('Error sharing photo:', error);
+                Alert.alert('Error', 'Failed to share photo.');
+            }
+        }
     };
 
     const takePicture = async () => {
@@ -166,83 +219,91 @@ const CameraScreen = () => {
             });
 
             console.log('Camera image captured:', photo.path);
-            setFinalImage(photo.path); 
-            // Alert.alert('Success', 'Photo captured with frame!', [{ text: 'OK' }]);
+            setFinalImage(photo.path);
         } catch (error) {
-            console.error('Error capturing image with frame:', error);
-            Alert.alert('Error', 'Failed to capture image with frame.');
+            console.error('Error capturing image:', error);
+            Alert.alert('Error', 'Failed to capture image.');
         }
     };
 
-  
-
-    const sharePhoto = async (path) => {
-        try {
-            await Share.open({
-                url: `file://${path}`,
-                title: 'Share Photo',
-            });
-        } catch (error) {
-            console.error('Error sharing photo:', error);
-            Alert.alert('Error', 'Failed to share photo.');
-        }
+    const handleSelectFrame = (frame) => {
+        setSelectedFrame(frame);
+        console.log('Selected Frame:', frame);
     };
 
     const closePreview = () => {
+        if (alertTimeoutRef.current) {
+            clearTimeout(alertTimeoutRef.current);
+        }
         setFinalImage(null);
+        setCompositeImage(null);
+        setAlertVisible(false);
     };
-
-    if (hasPermission === 'denied') {
-        return <View style={styles.container}><Text>Camera permission is required.</Text></View>;
-    }
-
-    if (!device) {
-        return <View style={styles.container}><Text>Loading Camera...</Text></View>;
-    }
 
     return (
         <View style={styles.container}>
-            <ViewShot ref={viewShotRef} style={styles.cameraContainer} options={{ format: 'png', quality: 1 }}>
-                <Camera
-                    style={StyleSheet.absoluteFill}
-                    device={device}
-                    isActive={true}
-                    photo={true}
-                    ref={cameraRef}
-                />
-                {selectedFrame?.uri && (
-                    <Image source={selectedFrame.uri} style={styles.frameImage} />
-                )}
-            </ViewShot>
+            {isCameraReady && device ? (
+                <ViewShot ref={viewShotRef} style={styles.cameraContainer} options={{ format: 'png', quality: 1 }}>
+                    <Camera
+                        style={StyleSheet.absoluteFill}
+                        device={device}
+                        isActive={true}
+                        photo={true}
+                        ref={cameraRef}
+                    />
+                    {selectedFrame?.uri && (
+                        <Image source={selectedFrame.uri} style={styles.frameImage} />
+                    )}
+                </ViewShot>
+            ) : (
+                <View style={[styles.cameraContainer, styles.loadingContainer]}>
+                    <Text style={styles.loadingText}>Initializing camera...</Text>
+                </View>
+            )}
 
-            <View style={styles.controlsContainer}>
-                <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
-                <Icon name="camera" size={50} color="white" />
-                </TouchableOpacity>
-            </View>
+            {isCameraReady && device && (
+                <>
+                    <View style={styles.controlsContainer}>
+                        <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
+                            <Icon name="camera" size={50} color="white" />
+                        </TouchableOpacity>
+                    </View>
 
-            <View style={styles.frameSelectorContainer}>
-                <FrameSelector
-                    frames={frames}
-                    selectedFrame={selectedFrame}
-                    onSelectFrame={handleSelectFrame}
-                />
-            </View>
+                    <View style={styles.frameSelectorContainer}>
+                        <FrameSelector
+                            frames={frames}
+                            selectedFrame={selectedFrame}
+                            onSelectFrame={handleSelectFrame}
+                        />
+                    </View>
+                </>
+            )}
 
-            {finalImage && (
+            {finalImage && !alertVisible && (
                 <View style={styles.previewContainer}>
-                    <ImageBackground source={{ uri: `file://${finalImage}` }} style={styles.fullScreenImage}>
-                        {selectedFrame?.uri && (
-                            <Image source={selectedFrame.uri} style={styles.fullScreenImage} />
-                        )}
-                    </ImageBackground>
+                    <ViewShot
+                        ref={previewViewShotRef}
+                        style={styles.fullScreenImage}
+                        options={{ format: 'png', quality: 1 }}
+                    >
+                        <ImageBackground 
+                            source={{ uri: `file://${finalImage}` }} 
+                            style={styles.fullScreenImage}
+                        >
+                            {selectedFrame?.uri && (
+                                <Image 
+                                    source={selectedFrame.uri} 
+                                    style={styles.fullScreenImage} 
+                                />
+                            )}
+                        </ImageBackground>
+                    </ViewShot>
 
                     <View style={styles.iconContainer}>
-                       
-                        <TouchableOpacity onPress={() => sharePhoto(finalImage)} style={styles.iconButton}>
+                        <TouchableOpacity onPress={sharePhoto} style={styles.iconButton}>
                             <Icon name="share" size={35} color="white" />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => savePhoto(finalImage)} style={styles.iconButton}>
+                        <TouchableOpacity onPress={savePhoto} style={styles.iconButton}>
                             <Icon name="download" size={50} color="white" />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={closePreview} style={styles.iconButton}>
@@ -258,9 +319,19 @@ const CameraScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#000',
     },
     cameraContainer: {
         flex: 1,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#000',
+    },
+    loadingText: {
+        color: 'white',
+        fontSize: 16,
     },
     controlsContainer: {
         position: 'absolute',
@@ -271,7 +342,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     captureButton: {
-        backgroundColor:  'rgba(0,0,0,0.6)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         padding: 15,
         borderRadius: 50,
         borderWidth: 2,
@@ -281,9 +352,10 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         width: screenWidth,
-        borderTopWidth: 1,
-        borderTopColor: '#ddd',
-        backgroundColor: 'rgba(0,0,0,0.8)',
+        // borderTopWidth: 1,
+        // borderTopColor: '#ddd',
+        
+      
     },
     frameImage: {
         width: '100%',
@@ -305,20 +377,18 @@ const styles = StyleSheet.create({
         resizeMode: 'contain',
     },
     iconContainer: {
-            position: 'absolute',
-            bottom: 60,
-            flexDirection: 'row',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            width: screenWidth,
+        position: 'absolute',
+        bottom: 60,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        width: screenWidth,
     },
     iconButton: {
-            marginHorizontal: 15,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            padding: 10,
-            borderRadius: 50,
-        
-
+        marginHorizontal: 15,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        padding: 10,
+        borderRadius: 50,
     },
 });
 
