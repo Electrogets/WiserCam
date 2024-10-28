@@ -1,16 +1,17 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet,Image } from 'react-native';
 
 export default function SplashScreen({ navigation }) {
     useEffect(() => {
         setTimeout(() => {
-            navigation.replace('Login');
+            navigation.replace('Home');
         }, 2000);
     }, []);
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Wiser Camera</Text>
+            {/* <Text style={styles.title}>Wiser Camera</Text> */}
+            <Image source={require('../assets/icons/Wisercamera-Logo.png')} style={styles.logo} />
         </View>
     );
 }
@@ -27,4 +28,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#000',
     },
+    logo:{
+            width: '100%',
+            resizeMode: 'contain',
+    }
 });
