@@ -48,7 +48,7 @@ const FrameSelector = ({ onSelectFrame }) => {
 
 const styles = StyleSheet.create({
   backgroundContainer: {
-    // backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+    // backgroundColor: 'rgba(255, 255, 255, 0.9)', 
     borderRadius: 10,
     width:'100%',
     shadowColor: '#000',
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.2,
     shadowRadius: 3.84,
-    elevation: 5, // For Android shadow
+    // elevation: 1, // For Android shadow
   },
   scrollContainer: {
     paddingHorizontal: 0,
@@ -76,8 +76,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   frame: {
-    // width: 50,
-    height: 60,
+    width: 25,
+    // height: 60,
     resizeMode: 'contain', // Ensures the image covers the entire area
   },
   selectedFrame: {

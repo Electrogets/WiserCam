@@ -156,7 +156,7 @@ const CameraScreen = () => {
             if (Platform.OS === 'android') {
                 const directoryPath = await ensureDirectoryExists();
                 const timestamp = new Date().getTime();
-                const fileName = `MyApp_${timestamp}.png`;
+                const fileName = `WiserCamera_${timestamp}.png`;
                 const destinationPath = `${directoryPath}/${fileName}`;
 
                 await RNFS.copyFile(uri, destinationPath);
@@ -243,7 +243,7 @@ const CameraScreen = () => {
     return (
         <View style={styles.container}>
             {isCameraReady && device ? (
-                <ViewShot ref={viewShotRef} style={styles.cameraContainer} options={{ format: 'png', quality: 1 }}>
+                <ViewShot ref={viewShotRef} style={styles.cameraContainer} options={{ format: 'webm', quality: 1 }}>
                     <Camera
                         style={StyleSheet.absoluteFill}
                         device={device}

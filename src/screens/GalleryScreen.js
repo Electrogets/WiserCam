@@ -159,7 +159,7 @@ export default function GalleryScreen({ navigation }) {
                 
                 // Generate unique filename
                 const timestamp = new Date().getTime();
-                const fileName = `MyApp_${timestamp}.png`;
+                const fileName = `WiserCamera_${timestamp}.png`;
                 const destinationPath = `${directoryPath}/${fileName}`;
 
                 console.log('Saving image to:', destinationPath);
@@ -286,9 +286,9 @@ export default function GalleryScreen({ navigation }) {
                     <ViewShot 
                         ref={viewShotRef} 
                         options={{ 
-                            format: 'png', 
-                            quality: 0.9,
-                            result: 'tmpfile'
+                            format: 'webm', 
+                            quality: 1,
+                           
                         }}
                         style={styles.imageContainer}
                     >
