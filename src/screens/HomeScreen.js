@@ -62,7 +62,6 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     iconContainer: {
-        // justifyContent: 'space-around',
         alignItems: 'center',
         width: '100%',
         height:'auto'

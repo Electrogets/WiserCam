@@ -26,11 +26,8 @@ export default function GalleryScreen({ navigation }) {
     const [selectedFrame, setSelectedFrame] = useState(frames[0]);
     const viewShotRef = createRef(); // Create the reference 
     const alertTimeoutRef = useRef(null);
-    // const [selectImage, setselectImage]= useState(null);
-
-
-
-
+ 
+    
     useEffect(() => {
         return () => {
             if (alertTimeoutRef.current) {
@@ -286,7 +283,7 @@ export default function GalleryScreen({ navigation }) {
                     <ViewShot 
                         ref={viewShotRef} 
                         options={{ 
-                            format: 'webm', 
+                            format: 'png', 
                             quality: 1,
                            
                         }}
@@ -364,9 +361,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         width: screenWidth,
-        // borderTopWidth: 1,
-        // borderTopColor: '#ddd',
-        // backgroundColor: '#000',
     },
     buttonContainer: {
         position: 'absolute',
